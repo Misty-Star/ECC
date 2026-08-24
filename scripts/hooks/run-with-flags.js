@@ -142,6 +142,9 @@ function truncatedInputResult(hookId, maxStdin) {
 }
 
 function getPluginRoot() {
+  if (process.env.GROK_PLUGIN_ROOT && process.env.GROK_PLUGIN_ROOT.trim()) {
+    return process.env.GROK_PLUGIN_ROOT;
+  }
   if (process.env.CLAUDE_PLUGIN_ROOT && process.env.CLAUDE_PLUGIN_ROOT.trim()) {
     return process.env.CLAUDE_PLUGIN_ROOT;
   }
@@ -319,6 +322,7 @@ async function main() {
     encoding: 'utf8',
     env: {
       ...process.env,
+      GROK_PLUGIN_ROOT: pluginRoot,
       CLAUDE_PLUGIN_ROOT: pluginRoot,
       ECC_PLUGIN_ROOT: pluginRoot,
       ECC_HOOK_ID: hookId,
