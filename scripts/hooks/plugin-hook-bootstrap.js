@@ -173,7 +173,6 @@ function spawnNode(rootDir, relPath, raw, args, options = {}) {
   ensureAgentDataHomeEnv();
   const hookEnv = {
     ...process.env,
-    GROK_PLUGIN_ROOT: rootDir,
     CLAUDE_PLUGIN_ROOT: rootDir,
     ECC_PLUGIN_ROOT: rootDir,
     ECC_HOOK_INPUT_MAX_BYTES: String(options.maxStdin),
@@ -207,7 +206,6 @@ function spawnShell(rootDir, relPath, raw, args, options = {}) {
   ensureAgentDataHomeEnv();
   const hookEnv = {
     ...process.env,
-    GROK_PLUGIN_ROOT: rootDir,
     CLAUDE_PLUGIN_ROOT: rootDir,
     ECC_PLUGIN_ROOT: rootDir,
     ECC_HOOK_INPUT_MAX_BYTES: String(options.maxStdin),
@@ -268,7 +266,7 @@ async function main() {
   contextScanner.push(contextDecoder.end());
   const hookContext = contextScanner.context;
   const rootDir = normalizePluginRootForPlatform(
-    process.env.GROK_PLUGIN_ROOT || process.env.CLAUDE_PLUGIN_ROOT || process.env.ECC_PLUGIN_ROOT
+    process.env.CLAUDE_PLUGIN_ROOT || process.env.ECC_PLUGIN_ROOT
   );
 
   if (!mode || !relPath || !rootDir) {

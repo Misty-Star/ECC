@@ -103,6 +103,7 @@ function runTests() {
       adal: ['project', './.adal'],
       hermes: ['home', '~/.hermes'],
       openclaw: ['home', '~/.openclaw'],
+      grok: ['native', '~/.grok'],
     };
 
     for (const [id, [scopeId, root]] of Object.entries(expected)) {
@@ -175,7 +176,7 @@ function runTests() {
     assert.throws(() => normalizeHarnessSelection('none'), /At least one guided harness/);
     assert.throws(() => normalizeHarnessSelection('all,codex'), /cannot be combined/i);
     assert.throws(() => normalizeHarnessSelection('cursor'), /advanced.*not guided-ready/i);
-    assert.throws(() => normalizeHarnessSelection('grok'), /Unknown guided harness selection/);
+    assert.throws(() => normalizeHarnessSelection('grok'), /advanced.*not guided-ready/i);
   })) passed++; else failed++;
 
   if (test('exports deeply frozen records while list helpers return safe array copies', () => {
