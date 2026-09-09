@@ -98,6 +98,12 @@ function selectPinnedCachedVersion(versions, sha) {
   return versions.find((entry) => entry.sha === sha) || null;
 }
 
+function isPinnedRoot(root, sha, probe, pathModule = path) {
+  if (!SHA_PATTERN.test(sha || '') || !isCompleteRoot(root, probe, pathModule)) return false;
+  const identity = readJsonIfPresent(pathModule.join(root, SOURCE_IDENTITY_FILE));
+  return Boolean(identity && identity.sha === sha);
+}
+
 function findRootInGrokHome(homeDir, probe, pathModule = path) {
   const grokRoot = grokHomeDir(homeDir, pathModule);
   const candidates = [
@@ -126,13 +132,17 @@ function findRootInGrokHome(homeDir, probe, pathModule = path) {
 function resolveGrokPluginRoot(options = {}) {
   const pathModule = options.pathModule || path;
   if (options.enabled === false) return null;
+  const pinnedSha = options.pinnedSha || (options.source && options.source.sha) || '';
   const envRoot = options.envRoot !== undefined
     ? trimEnv(options.envRoot)
     : grokPluginRootFromEnv(options.env || {});
-  if (envRoot) return envRoot;
+  if (envRoot) {
+    return pinnedSha && !isPinnedRoot(envRoot, pinnedSha, options.probe, pathModule)
+      ? null
+      : envRoot;
+  }
 
   const homeDir = options.homeDir || os.homedir();
-  const pinnedSha = options.pinnedSha || (options.source && options.source.sha) || '';
   if (pinnedSha) {
     const pinned = selectPinnedCachedVersion(listCachedGrokVersions(homeDir, pathModule), pinnedSha);
     if (pinned && isCompleteRoot(pinned.installedRoot, options.probe, pathModule)) {
