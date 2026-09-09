@@ -124,6 +124,20 @@ function runTests() {
       writeCompleteRoot(otherCachedRoot, otherSha);
       const cachedRoot = path.join(homeDir, '.grok', 'plugins', 'cache', 'ecc', 'affaan-m', '2.2.1');
       writeCompleteRoot(cachedRoot, sha);
+      assert.strictEqual(
+        adapter.resolveGrokPluginRoot({
+          env: { GROK_PLUGIN_ROOT: otherCachedRoot },
+          pinnedSha: sha,
+        }),
+        null
+      );
+      assert.strictEqual(
+        adapter.resolveGrokPluginRoot({
+          env: { GROK_PLUGIN_ROOT: cachedRoot },
+          pinnedSha: sha,
+        }),
+        cachedRoot
+      );
       assert.strictEqual(adapter.listCachedGrokVersions(homeDir).length, 2);
       assert.strictEqual(adapter.selectPinnedCachedVersion(adapter.listCachedGrokVersions(homeDir), sha).installedRoot, cachedRoot);
       assert.strictEqual(adapter.resolveGrokPluginRoot({ homeDir, pinnedSha: sha }), cachedRoot);
