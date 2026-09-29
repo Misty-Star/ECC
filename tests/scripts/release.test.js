@@ -80,6 +80,25 @@ function runTests() {
     );
   })) passed++; else failed++;
 
+  if (test('release script updates and commits the Grok pin before tagging', () => {
+    const releaseCommitIndex = source.indexOf('git commit -m "chore: bump plugin version to $VERSION"');
+    const sourceShaIndex = source.indexOf('GROK_SOURCE_SHA=$(git rev-parse HEAD)');
+    const pinUpdateIndex = source.indexOf('plugin.source.sha = sha;');
+    const pinValidationIndex = source.indexOf('node scripts/ci/validate-grok-pin.js');
+    const pinCommitIndex = source.indexOf('git commit -m "chore: pin Grok marketplace to release source"');
+    const tagIndex = source.indexOf('git tag "v$VERSION"');
+
+    assert.ok(source.includes('GROK_PLUGIN_JSON=".grok-plugin/plugin.json"'));
+    assert.ok(source.includes('GROK_MARKETPLACE_JSON=".grok-plugin/marketplace.json"'));
+    assert.ok(source.includes('update_version "$GROK_PLUGIN_JSON"'));
+    assert.ok(source.includes('update_marketplace_plugin_version "$GROK_MARKETPLACE_JSON"'));
+    assert.ok(releaseCommitIndex >= 0 && sourceShaIndex > releaseCommitIndex);
+    assert.ok(pinUpdateIndex > sourceShaIndex);
+    assert.ok(pinValidationIndex > pinUpdateIndex);
+    assert.ok(pinCommitIndex > pinValidationIndex);
+    assert.ok(tagIndex > pinCommitIndex, 'the release tag must point at the pin-only commit');
+  })) passed++; else failed++;
+
   if (test('release script supports prerelease semver and release heading sync', () => {
     assert.ok(
       source.includes('2.0.0-rc.1'),
