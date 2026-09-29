@@ -25,6 +25,10 @@ node scripts/uninstall.js --target grok
 rollback use the same canonical apply path; pass `--source-sha <40-hex>` to
 reapply a previous pinned commit.
 
+Fetching a pinned snapshot accepts HTTPS URLs or absolute local repository
+paths (including local `file://` URLs). SSH, relative remote names, and custom
+Git remote-helper transports are rejected before fetching.
+
 The marketplace pin advances with releases, not every source commit. Ordinary
 CI validates the SHA and its ancestry. `scripts/release.sh` commits the release
 metadata, pins that source commit in a separate catalog commit, and validates
@@ -83,7 +87,7 @@ consent before any MCP name is copied into an install plan.
 
 ## Known limits
 
-- 286 skills are advertised into Grok's skill catalog. Use a smaller working
+- 311 skills are advertised into Grok's skill catalog. Use a smaller working
   set when context footprint matters.
 - Agent files load, but ECC agent `tools:` lists use Claude names (`Read`,
   `Bash`). Grok hook matchers map those names; agent frontmatter does not.

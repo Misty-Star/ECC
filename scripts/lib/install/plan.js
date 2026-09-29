@@ -121,7 +121,7 @@ function buildCopyFileOperation({
     strategy,
     ownership: 'managed',
     scaffoldOnly: false,
-    ...(contentTransform ? { contentTransform } : {}),
+    ...(applicableTransform ? { contentTransform: applicableTransform } : {}),
     ...(contentTransform === 'grok-plugin-consent' ? { grokHooksEnabled } : {}),
     ...(contentTransform === 'grok-plugin-consent' ? { grokMcpEnabled } : {}),
     ...(contentTransform === 'grok-mcp-consent' ? { grokMcpIds: [...grokMcpIds] } : {}),
@@ -361,7 +361,7 @@ function createManifestInstallPlan(options = {}) {
     source
   });
 
-  const installPlan = {
+  const installPlan = disableUnselectedOpenCodeHooks({
     mode: options.mode || 'manifest',
     sourceRoot,
     target,
@@ -387,7 +387,7 @@ function createManifestInstallPlan(options = {}) {
     excludedModuleIds: plan.excludedModuleIds,
     operations,
     statePreview
-  };
+  });
   if (typeof preparedSource.cleanup === 'function') {
     Object.defineProperty(installPlan, 'dispose', {
       configurable: false,

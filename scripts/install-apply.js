@@ -223,7 +223,12 @@ async function main() {
       printHumanPlan(result, false);
     }
   } catch (error) {
-    process.stderr.write(`Error: ${error.message}${getHelpText()}`);
+    const missingDependencyMessage = describeMissingDependencyError(error);
+    process.stderr.write(
+      missingDependencyMessage
+        ? `Error: ${missingDependencyMessage}\n`
+        : `Error: ${error.message}${getHelpText()}`
+    );
     process.exitCode = 1;
   } finally {
     if (rawPlan && typeof rawPlan.dispose === 'function') {

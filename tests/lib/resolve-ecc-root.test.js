@@ -17,7 +17,11 @@ const CURRENT_PACKAGE_VERSION = JSON.parse(
   fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')
 ).version;
 
-const { resolveEccRoot, INLINE_RESOLVE } = require('../../scripts/lib/resolve-ecc-root');
+const {
+  resolveEccRoot,
+  normalizePluginRootForPlatform,
+  INLINE_RESOLVE
+} = require('../../scripts/lib/resolve-ecc-root');
 
 // Sentinel ECC skill that resolveEccRoot() requires (alongside the script tree)
 // before accepting a root for skill consumers. Kept in sync with the module's

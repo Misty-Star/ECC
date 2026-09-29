@@ -370,6 +370,9 @@ function createInstallTargetAdapter(config) {
         strategy: adapter.determineStrategy(normalizedSourcePath),
       });
     },
+    excludesSourcePath(sourceRelativePath) {
+      return isExcludedSourcePath(sourceRelativePath, config.excludedSourcePaths);
+    },
     prepareSource(input = {}) {
       if (typeof config.prepareSource === 'function') {
         return config.prepareSource(input, adapter);

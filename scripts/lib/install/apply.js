@@ -57,7 +57,8 @@ const {
   withoutStaleOperations,
 } = require('./stale-operations-reconciliation');
 const { buildInstallIndex, rewriteRelativeLinks } = require('./link-rewrite');
-const { transformCopyFileContent } = require('./content-transform');
+const { transformInstallContent } = require('./content-transform');
+const { assertScriptBoundary, isScriptBoundary } = require('./opencode-script-boundary');
 
 function isMarkdownPath(filePath) {
   return /\.(md|mdx|markdown)$/i.test(String(filePath || ''));
@@ -909,7 +910,7 @@ function applyInstallPlanLocked(plan, dependencies = {}, settingsLockHeld = fals
         && isMarkdownPath(operation.destinationPath)
       );
       if (operation.kind === 'copy-file' && (operation.contentTransform || needsLinkRewrite)) {
-        const transformed = transformCopyFileContent(
+        const transformed = transformInstallContent(
           operation,
           fs.readFileSync(operation.sourcePath, 'utf8')
         );

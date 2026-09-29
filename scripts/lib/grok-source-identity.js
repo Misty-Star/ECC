@@ -4,6 +4,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { fileURLToPath } = require('url');
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const GIT_FETCH_TIMEOUT_MS = 60_000;
@@ -119,14 +120,40 @@ function findRegistrySource(sourceRoot, homeDir, pathModule = path) {
   return null;
 }
 
+function sourceTransport(sourceUrl) {
+  if (typeof sourceUrl === 'string' && sourceUrl === sourceUrl.trim() && !/[\r\n\0]/.test(sourceUrl)) {
+    if (path.isAbsolute(sourceUrl) && !sourceUrl.startsWith('//') && !sourceUrl.startsWith('\\\\')) {
+      return 'file';
+    }
+    try {
+      const url = new URL(sourceUrl);
+      if (url.protocol === 'https:' && sourceUrl.startsWith('https://') && !url.username && !url.password) {
+        return 'https';
+      }
+      if (url.protocol === 'file:' && !url.hostname && path.isAbsolute(fileURLToPath(url))) {
+        return 'file';
+      }
+    } catch {
+      // Reject malformed URLs before Git can interpret them as a remote helper.
+    }
+  }
+  throw new Error('Grok source must use HTTPS or an absolute local repository');
+}
+
 function fetchPinnedGitSource(sourceUrl, sha, parentDir, execute = execFileSync) {
+  const protocol = sourceTransport(sourceUrl);
+  if (!SHA_PATTERN.test(sha || '')) {
+    throw new Error('Grok source must pin a 40-character lowercase commit SHA');
+  }
   const gitDir = path.join(parentDir, 'git');
   fs.mkdirSync(gitDir, { recursive: true });
   execute('git', ['init', '--bare', '--quiet', gitDir], { stdio: 'ignore' });
   try {
-    execute('git', ['-C', gitDir, 'fetch', '--quiet', '--depth=1', '--no-tags', sourceUrl, sha], {
+    execute('git', ['-C', gitDir, 'fetch', '--quiet', '--depth=1', '--no-tags', '--', sourceUrl, sha], {
       stdio: ['ignore', 'ignore', 'pipe'],
       timeout: GIT_FETCH_TIMEOUT_MS,
+      // Enforce the transport after Git applies URL rewrites, even if user config allows helpers.
+      env: { ...process.env, GIT_ALLOW_PROTOCOL: protocol },
     });
   } catch (error) {
     const detail = String(error.stderr || error.message || error).trim();

@@ -144,16 +144,32 @@ test('CLI rejects unknown options instead of silently disabling release validati
 
 // release.sh is a POSIX entrypoint; the validator and updater tests above run on all platforms.
 if (process.platform !== 'win32') {
-  for (const contaminate of [false, true]) {
-    test(contaminate ? 'release blocks tagging when a commit hook changes source'
-      : 'release script tags the verified pin-only commit', () => {
+  for (const scenario of ['valid', 'contaminated', 'signing-failure']) {
+    const name = scenario === 'valid' ? 'release signs and verifies the annotated pin-only tag'
+      : scenario === 'contaminated' ? 'release blocks tagging when a commit hook changes source'
+        : 'release stops without a tag when signing fails';
+    test(name, () => {
       const fixture = createFixture();
       try {
+        const signingKey = path.join(fixture.root, '.git', 'release-signing-key');
+        execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', signingKey]);
+        const allowedSigners = path.join(fixture.root, '.git', 'allowed-signers');
+        fs.writeFileSync(allowedSigners,
+          `ecc-test@example.invalid ${fs.readFileSync(`${signingKey}.pub`, 'utf8')}`);
+        git(fixture.root, 'config', 'gpg.format', 'ssh');
+        git(fixture.root, 'config', 'user.signingkey', signingKey);
+        git(fixture.root, 'config', 'gpg.ssh.allowedSignersFile', allowedSigners);
+        git(fixture.root, 'config', 'tag.gpgSign', 'false');
+        git(fixture.root, 'config', 'commit.gpgSign', 'false');
+        if (scenario === 'signing-failure') {
+          fs.rmSync(signingKey);
+          fs.rmSync(`${signingKey}.pub`);
+        }
         fs.writeFileSync(path.join(fixture.root, 'payload.txt'), 'new release source\n');
         git(fixture.root, 'add', '.');
         git(fixture.root, 'commit', '--quiet', '-m', 'release source');
         const sourceSha = git(fixture.root, 'rev-parse', 'HEAD');
-        if (contaminate) {
+        if (scenario === 'contaminated') {
           fs.writeFileSync(path.join(fixture.root, '.git/hooks/pre-commit'),
             '#!/bin/sh\nprintf "unexpected source change\\n" > payload.txt\ngit add payload.txt\n',
             { mode: 0o755 });
@@ -168,14 +184,23 @@ if (process.platform !== 'win32') {
           encoding: 'utf8',
           env: { ...process.env, GROK_MARKETPLACE_JSON: '.grok-plugin/marketplace.json', VERSION: '9.9.9' },
         });
-        if (contaminate) {
-          assert.strictEqual(result.status, 1, result.stderr);
-          assert.match(result.stderr, /pin .* is stale/);
+        if (scenario !== 'valid') {
+          assert.notStrictEqual(result.status, 0, result.stderr);
+          if (scenario === 'contaminated') {
+            assert.strictEqual(result.status, 1, result.stderr);
+            assert.match(result.stderr, /pin .* is stale/);
+          } else {
+            assert.match(result.stderr, /sign|key/i);
+            assert.strictEqual(validateGrokPin(fixture.root, { release: true }).sha, sourceSha);
+          }
           assert.strictEqual(git(fixture.root, 'tag', '--list'), '');
         } else {
           assert.strictEqual(result.status, 0, result.stderr);
           assert.strictEqual(validateGrokPin(fixture.root, { release: true }).sha, sourceSha);
-          assert.strictEqual(git(fixture.root, 'rev-parse', 'v9.9.9'), git(fixture.root, 'rev-parse', 'HEAD'));
+          assert.strictEqual(git(fixture.root, 'cat-file', '-t', 'v9.9.9'), 'tag');
+          assert.strictEqual(git(fixture.root, 'rev-parse', 'v9.9.9^{commit}'), git(fixture.root, 'rev-parse', 'HEAD'));
+          assert.match(git(fixture.root, 'cat-file', '-p', 'v9.9.9'), /\nRelease v9\.9\.9\n/);
+          git(fixture.root, 'verify-tag', '--raw', 'v9.9.9');
           assert.strictEqual(git(fixture.root, 'diff', '--name-only', sourceSha, 'HEAD'),
             '.grok-plugin/marketplace.json');
         }

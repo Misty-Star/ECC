@@ -80,13 +80,26 @@ function runTests() {
     );
   })) passed++; else failed++;
 
+  if (test('release preserves Qoder and Grok manifest checks, updates, and staging', () => {
+    const existenceCheck = source.match(/^for FILE in (.+); do$/m);
+    const staging = source.match(/^git add (.+)$/m);
+    assert.ok(existenceCheck, 'release.sh should check versioned manifests exist');
+    assert.ok(staging, 'release.sh should stage versioned manifests');
+    for (const manifest of ['QODER_PLUGIN_JSON', 'GROK_PLUGIN_JSON', 'GROK_MARKETPLACE_JSON']) {
+      assert.ok(existenceCheck[1].includes(`"$${manifest}"`), `${manifest} must exist before release`);
+      assert.ok(staging[1].includes(`"$${manifest}"`), `${manifest} must be in the release commit`);
+    }
+    assert.ok(source.includes('QODER_PLUGIN_JSON=".qoder-plugin/plugin.json"'));
+    assert.ok(source.includes('update_version "$QODER_PLUGIN_JSON"'));
+  })) passed++; else failed++;
+
   if (test('release script updates and commits the Grok pin before tagging', () => {
     const releaseCommitIndex = source.indexOf('git commit -m "chore: bump plugin version to $VERSION"');
     const sourceShaIndex = source.indexOf('GROK_SOURCE_SHA=$(git rev-parse HEAD)');
     const pinUpdateIndex = source.indexOf('plugin.source.sha = sha;');
     const pinValidationIndex = source.indexOf('node scripts/ci/validate-grok-pin.js --release');
     const pinCommitIndex = source.indexOf('git commit -m "chore: pin Grok marketplace to release source"');
-    const tagIndex = source.indexOf('git tag "v$VERSION"');
+    const tagIndex = source.indexOf('\ngit tag -s "v$VERSION" -m "Release v$VERSION"\n');
 
     assert.ok(source.includes('GROK_PLUGIN_JSON=".grok-plugin/plugin.json"'));
     assert.ok(source.includes('GROK_MARKETPLACE_JSON=".grok-plugin/marketplace.json"'));

@@ -305,10 +305,11 @@ function withHookConsent(plan, hookConsent = null) {
   if (hookConsent === 'declined') {
     return preserveDispose(plan, { ...stripHookRuntimeFromPlan(plan), hookConsent });
   }
+  const effectivePlan = disableUnselectedOpenCodeHooks(plan);
   return preserveDispose(plan, {
-    ...plan,
+    ...effectivePlan,
     hookConsent,
-    statePreview: setStatePreviewHookConsent(plan.statePreview, hookConsent),
+    statePreview: setStatePreviewHookConsent(effectivePlan.statePreview, hookConsent),
   });
 }
 
