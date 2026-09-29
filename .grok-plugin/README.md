@@ -25,6 +25,13 @@ node scripts/uninstall.js --target grok
 rollback use the same canonical apply path; pass `--source-sha <40-hex>` to
 reapply a previous pinned commit.
 
+The marketplace pin advances with releases, not every source commit. Ordinary
+CI validates the SHA and its ancestry. `scripts/release.sh` commits the release
+metadata, pins that source commit in a separate catalog commit, and validates
+the result before tagging. Release workflows also run
+`node scripts/ci/validate-grok-pin.js --release` to reject unpublished source
+changes after the pinned snapshot.
+
 Grok CLI marketplace add / install / enable is **discovery only**.
 `grok plugin install --trust` skips Grok's confirmation prompt; it is **not
 ECC capability consent** and does not write an ECC receipt. `plugin.json`

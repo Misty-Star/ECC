@@ -84,7 +84,7 @@ function runTests() {
     const releaseCommitIndex = source.indexOf('git commit -m "chore: bump plugin version to $VERSION"');
     const sourceShaIndex = source.indexOf('GROK_SOURCE_SHA=$(git rev-parse HEAD)');
     const pinUpdateIndex = source.indexOf('plugin.source.sha = sha;');
-    const pinValidationIndex = source.indexOf('node scripts/ci/validate-grok-pin.js');
+    const pinValidationIndex = source.indexOf('node scripts/ci/validate-grok-pin.js --release');
     const pinCommitIndex = source.indexOf('git commit -m "chore: pin Grok marketplace to release source"');
     const tagIndex = source.indexOf('git tag "v$VERSION"');
 
@@ -96,7 +96,22 @@ function runTests() {
     assert.ok(pinUpdateIndex > sourceShaIndex);
     assert.ok(pinValidationIndex > pinUpdateIndex);
     assert.ok(pinCommitIndex > pinValidationIndex);
+    const finalValidationIndex = source.lastIndexOf('node scripts/ci/validate-grok-pin.js --release');
+    assert.ok(finalValidationIndex > pinCommitIndex && finalValidationIndex < tagIndex,
+      'validate the committed release snapshot before tagging');
     assert.ok(tagIndex > pinCommitIndex, 'the release tag must point at the pin-only commit');
+  })) passed++; else failed++;
+
+  if (test('release workflows enforce snapshot equality while ordinary CI accepts historical pins', () => {
+    for (const workflow of [releaseWorkflowSource, reusableReleaseWorkflowSource]) {
+      assert.match(workflow, /run: node scripts\/ci\/validate-grok-pin\.js --release/);
+    }
+    const reusableValidation = fs.readFileSync(path.join(
+      __dirname, '../../.github/workflows/reusable-validate.yml'
+    ), 'utf8');
+    for (const workflow of [ciWorkflowSource, reusableValidation]) {
+      assert.match(workflow, /run: node scripts\/ci\/validate-grok-pin\.js\s*\n/);
+    }
   })) passed++; else failed++;
 
   if (test('release script supports prerelease semver and release heading sync', () => {

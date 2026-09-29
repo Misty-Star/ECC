@@ -354,9 +354,10 @@ node -e '
   plugin.source.sha = sha;
   fs.writeFileSync(file, `${JSON.stringify(marketplace, null, 2)}\n`);
 ' "$GROK_MARKETPLACE_JSON" "$GROK_SOURCE_SHA"
-node scripts/ci/validate-grok-pin.js
+node scripts/ci/validate-grok-pin.js --release
 git add "$GROK_MARKETPLACE_JSON"
 git commit -m "chore: pin Grok marketplace to release source"
+node scripts/ci/validate-grok-pin.js --release
 git tag "v$VERSION"
 git push origin main "v$VERSION"
 

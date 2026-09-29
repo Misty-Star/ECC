@@ -14,7 +14,7 @@ function git(root, args) {
   }).trim();
 }
 
-function validateGrokPin(root = path.resolve(__dirname, '../..')) {
+function validateGrokPin(root = path.resolve(__dirname, '../..'), { release = false } = {}) {
   const marketplace = JSON.parse(fs.readFileSync(path.join(root, MARKETPLACE_PATH), 'utf8'));
   const source = marketplace.plugins && marketplace.plugins[0] && marketplace.plugins[0].source;
   const sha = source && source.sha;
@@ -30,18 +30,28 @@ function validateGrokPin(root = path.resolve(__dirname, '../..')) {
   } catch {
     throw new Error(`Grok marketplace pin ${sha} is not an ancestor of HEAD ${head}`);
   }
-  try {
-    git(root, ['diff', '--quiet', sha, 'HEAD', '--', '.', `:(exclude)${MARKETPLACE_PATH}`]);
-  } catch {
-    throw new Error(`Grok marketplace pin ${sha} is stale; source changes exist after the pinned commit`);
+  // Development retains the last pinned snapshot; releases must include all source changes.
+  if (release) {
+    try {
+      git(root, ['diff', '--quiet', sha, 'HEAD', '--', '.', `:(exclude)${MARKETPLACE_PATH}`]);
+    } catch {
+      throw new Error(`Grok marketplace pin ${sha} is stale; source changes exist after the pinned commit`);
+    }
   }
   return { sha, head };
 }
 
 if (require.main === module) {
   try {
-    const { sha, head } = validateGrokPin();
-    console.log(`Grok marketplace pin ${sha} matches source at ${head}`);
+    const args = process.argv.slice(2);
+    if (args.length > 1 || (args.length === 1 && args[0] !== '--release')) {
+      throw new Error('Usage: node scripts/ci/validate-grok-pin.js [--release]');
+    }
+    const release = args[0] === '--release';
+    const { sha, head } = validateGrokPin(undefined, { release });
+    console.log(release
+      ? `Grok marketplace pin ${sha} matches source at ${head}`
+      : `Grok marketplace pin ${sha} is a valid ancestor of ${head}`);
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
