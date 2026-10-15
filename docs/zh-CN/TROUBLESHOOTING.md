@@ -394,7 +394,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 
 ```bash
 # Install plugin dependencies
-cd ~/.claude/plugins/cache/ecc
+cd ~/.claude/plugins/cache/ecc/ecc/<version>
 npm install
 
 # Or for manual install

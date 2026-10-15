@@ -381,7 +381,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 
 ```bash
 # プラグインの依存関係をインストール
-cd ~/.claude/plugins/cache/ecc
+cd ~/.claude/plugins/cache/ecc/ecc/<version>
 npm install
 
 # または手動インストールの場合

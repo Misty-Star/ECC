@@ -380,7 +380,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 
 ```bash
 # Instalar dependencias del plugin
-cd ~/.claude/plugins/cache/ecc
+cd ~/.claude/plugins/cache/ecc/ecc/<version>
 npm install
 
 # O para instalación manual
