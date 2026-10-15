@@ -370,6 +370,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 
 ```bash
 # Eklenti bağımlılıklarını kur
+# <version> yerine `claude plugin list` çıktısındaki sürümü yazın, örneğin 2.2.3
 cd ~/.claude/plugins/cache/ecc/ecc/<version>
 npm install
 

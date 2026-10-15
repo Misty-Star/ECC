@@ -381,6 +381,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 
 ```bash
 # プラグインの依存関係をインストール
+# <version> は `claude plugin list` に表示されるバージョンに置き換えてください。例: 2.2.3
 cd ~/.claude/plugins/cache/ecc/ecc/<version>
 npm install
 
