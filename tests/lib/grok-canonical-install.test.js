@@ -81,9 +81,9 @@ function createPinnedFixture() {
     },
   };
   writeJson(marketplacePath, marketplace);
-  commit(sourceRoot, 'fixture catalog');
+  const catalogSha = commit(sourceRoot, 'fixture catalog');
 
-  return { parent, sourceRoot, homeDir, payloadSha };
+  return { parent, sourceRoot, homeDir, payloadSha, catalogSha };
 }
 
 function request({ trust = true, hooks = true, mcp = ['other-mcp'] } = {}) {
@@ -324,11 +324,7 @@ function runTests() {
     const fixture = createPinnedFixture();
     const extractedRoot = path.join(fixture.parent, 'extracted');
     try {
-      fs.mkdirSync(path.join(extractedRoot, '.grok-plugin'), { recursive: true });
-      fs.copyFileSync(
-        path.join(fixture.sourceRoot, '.grok-plugin', 'marketplace.json'),
-        path.join(extractedRoot, '.grok-plugin', 'marketplace.json')
-      );
+      copyGitArchive(fixture.sourceRoot, fixture.catalogSha, extractedRoot);
       assert.throws(
         () => createInstallPlanFromRequest(request(), {
           sourceRoot: extractedRoot,
@@ -344,7 +340,26 @@ function runTests() {
         repos: {
           ecc: {
             path: extractedRoot,
-            kind: { type: 'Git', url: fixture.sourceRoot, commit: fixture.payloadSha },
+            kind: { type: 'Git', url: fixture.sourceRoot, commit: 'invalid' },
+          },
+        },
+      });
+      assert.throws(
+        () => createInstallPlanFromRequest(request(), {
+          sourceRoot: extractedRoot,
+          projectRoot: extractedRoot,
+          homeDir: fixture.homeDir,
+          env: {},
+        }),
+        /registry URL\/commit evidence/
+      );
+
+      writeJson(path.join(fixture.homeDir, '.grok', 'installed-plugins', 'registry.json'), {
+        version: 1,
+        repos: {
+          ecc: {
+            path: extractedRoot,
+            kind: { type: 'Git', url: fixture.sourceRoot, commit: fixture.catalogSha },
             plugins: { ecc: { version: '2.2.1' } },
           },
         },
@@ -356,6 +371,8 @@ function runTests() {
         env: {},
       });
       applyInstallPlan(plan);
+      const installedState = JSON.parse(fs.readFileSync(plan.installStatePath, 'utf8'));
+      assert.strictEqual(installedState.source.repoCommit, fixture.payloadSha);
       assert.strictEqual(
         fs.readFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'utf8'),
         'pinned payload\n'
@@ -365,10 +382,10 @@ function runTests() {
     }
   })) passed++; else failed++;
 
-  if (test('repair, uninstall, upgrade, and rollback stay on canonical install state', () => {
+  if (test('repair preserves Grok choices and revision across catalog updates and rollback', () => {
     const fixture = createPinnedFixture();
     try {
-      const firstPlan = createPlan(fixture, { hooks: false, mcp: [] });
+      const firstPlan = createPlan(fixture);
       applyInstallPlan(firstPlan);
       const firstState = JSON.parse(fs.readFileSync(firstPlan.installStatePath, 'utf8'));
 
@@ -384,14 +401,8 @@ function runTests() {
       marketplace.plugins[0].source.sha = upgradedSha;
       writeJson(marketplacePath, marketplace);
       commit(fixture.sourceRoot, 'upgraded catalog');
-      const upgradePlan = createPlan(fixture, { hooks: false, mcp: [] });
-      applyInstallPlan(upgradePlan);
-      assert.strictEqual(
-        fs.readFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'utf8'),
-        'upgraded payload\n'
-      );
 
-      fs.writeFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'broken\n');
+      fs.writeFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'broken before repair\n');
       const repair = repairInstalledStates({
         repoRoot: fixture.sourceRoot,
         projectRoot: fixture.sourceRoot,
@@ -400,6 +411,21 @@ function runTests() {
         env: {},
       });
       assert.strictEqual(repair.results[0].status, 'repaired', JSON.stringify(repair.results[0]));
+      const repairedState = JSON.parse(fs.readFileSync(firstPlan.installStatePath, 'utf8'));
+      assert.strictEqual(repairedState.source.repoCommit, firstState.source.repoCommit);
+      assert.strictEqual(repairedState.request.trust, true);
+      assert.deepStrictEqual(repairedState.request.consentMcp, ['other-mcp']);
+      assert.strictEqual(repairedState.request.hookConsent, 'enabled');
+      assert.ok(fs.readFileSync(path.join(installedRoot(fixture), 'hooks', 'hooks.json'), 'utf8').includes('SessionStart'));
+      const repairedMcp = JSON.parse(fs.readFileSync(path.join(installedRoot(fixture), '.mcp.json'), 'utf8'));
+      assert.deepStrictEqual(Object.keys(repairedMcp.mcpServers), ['other-mcp']);
+      assert.strictEqual(
+        fs.readFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'utf8'),
+        'pinned payload\n'
+      );
+
+      const upgradePlan = createPlan(fixture, { hooks: false, mcp: [] });
+      applyInstallPlan(upgradePlan);
       assert.strictEqual(
         fs.readFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'utf8'),
         'upgraded payload\n'
@@ -407,7 +433,7 @@ function runTests() {
 
       const rollbackPlan = createPlan(
         fixture,
-        { hooks: false, mcp: [] },
+        {},
         { sourceSha: firstState.source.repoCommit }
       );
       applyInstallPlan(rollbackPlan);
@@ -418,6 +444,24 @@ function runTests() {
         'pinned payload\n'
       );
       assert.strictEqual(rolledBackState.source.repoVersion, '2.1.0');
+
+      fs.writeFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'broken after rollback\n');
+      const rollbackRepair = repairInstalledStates({
+        repoRoot: fixture.sourceRoot,
+        projectRoot: fixture.sourceRoot,
+        homeDir: fixture.homeDir,
+        targets: ['grok'],
+        env: {},
+      });
+      assert.strictEqual(rollbackRepair.results[0].status, 'repaired', JSON.stringify(rollbackRepair.results[0]));
+      const finalState = JSON.parse(fs.readFileSync(firstPlan.installStatePath, 'utf8'));
+      assert.strictEqual(finalState.source.repoCommit, firstState.source.repoCommit);
+      assert.strictEqual(finalState.request.trust, true);
+      assert.deepStrictEqual(finalState.request.consentMcp, ['other-mcp']);
+      assert.strictEqual(
+        fs.readFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'utf8'),
+        'pinned payload\n'
+      );
 
       const uninstall = uninstallInstalledStates({
         repoRoot: fixture.sourceRoot,

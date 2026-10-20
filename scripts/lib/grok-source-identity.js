@@ -199,8 +199,8 @@ function preparePinnedGrokSource(options = {}) {
     const registrySource = findRegistrySource(sourceRoot, homeDir);
     if (!registrySource
       || normalizeGitLocation(registrySource.url) !== normalizeGitLocation(sourceUrl)
-      || registrySource.sha !== sourceSha) {
-      throw new Error('Non-Git Grok source is unverifiable without matching registry URL/SHA evidence');
+      || !SHA_PATTERN.test(registrySource.sha || '')) {
+      throw new Error('Non-Git Grok source is unverifiable without matching registry URL/commit evidence');
     }
   }
 

@@ -121,12 +121,16 @@ function buildRecordedManifestRequest(record) {
     excludeComponentIds: Array.isArray(request.excludeComponents) ? [...request.excludeComponents] : [],
     legacyLanguages: Array.isArray(request.legacyLanguages) ? [...request.legacyLanguages] : [],
     hookConsent: getRecordedHookConsent(state),
+    trust: request.trust === true,
+    consentMcp: Array.isArray(request.consentMcp) ? [...request.consentMcp] : [],
   };
 }
 
 function resolveRecordedManifestPlan(record, context, options = {}) {
   return createInstallPlanFromRequest(buildRecordedManifestRequest(record), {
     sourceRoot: context.repoRoot,
+    sourceUrl: record.state.source.repoUrl || undefined,
+    sourceSha: record.state.source.repoCommit || undefined,
     projectRoot: context.projectRoot,
     homeDir: context.homeDir,
     env: context.env,
