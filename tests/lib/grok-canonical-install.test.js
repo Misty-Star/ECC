@@ -11,7 +11,11 @@ const { execFileSync, spawnSync } = require('child_process');
 const { applyInstallPlan, previewInstallPlan } = require('../../scripts/lib/install-executor');
 const { repairInstalledStates, uninstallInstalledStates } = require('../../scripts/lib/install-lifecycle');
 const { createInstallPlanFromRequest } = require('../../scripts/lib/install/runtime');
-const { copyGitArchive, fetchPinnedGitSource } = require('../../scripts/lib/grok-source-identity');
+const {
+  copyGitArchive,
+  fetchPinnedGitSource,
+  isGitWorkTreeRoot,
+} = require('../../scripts/lib/grok-source-identity');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 let passed = 0;
@@ -154,6 +158,13 @@ function runTests() {
       assert.deepStrictEqual(state.request.consentMcp, ['other-mcp']);
       assert.strictEqual(state.source.repoCommit, fixture.payloadSha);
       assert.strictEqual(state.source.repoUrl, fixture.sourceRoot);
+
+      const installOperations = state.operations.filter(operation => operation.contentTransform);
+      assert.ok(installOperations.every(operation => typeof operation.contentTransform === 'object'));
+      assert.ok(installOperations.every(operation => !Object.keys(operation).some(key => key.startsWith('grok'))));
+      assert.ok(installOperations.some(operation => operation.contentTransform.type === 'json-set'));
+      assert.ok(installOperations.some(operation => operation.contentTransform.type === 'text-replace'));
+      assert.ok(installOperations.some(operation => operation.contentTransform.type === 'json-filter-object-keys'));
 
       const manifest = JSON.parse(fs.readFileSync(path.join(installedRoot(fixture), '.grok-plugin', 'plugin.json'), 'utf8'));
       const mcp = JSON.parse(fs.readFileSync(path.join(installedRoot(fixture), '.mcp.json'), 'utf8'));
@@ -301,6 +312,35 @@ function runTests() {
       );
     } finally {
       fs.rmSync(fixture.parent, { recursive: true, force: true });
+    }
+  })) passed++; else failed++;
+
+  if (test('Git worktree roots accept symlink and macOS-style path aliases', () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'ecc-grok-root-alias-'));
+    try {
+      const sourceRoot = path.join(parent, 'source');
+      const aliasRoot = path.join(parent, 'source-alias');
+      fs.mkdirSync(sourceRoot);
+      git(sourceRoot, ['init', '--quiet']);
+      fs.symlinkSync(sourceRoot, aliasRoot, 'dir');
+      assert.strictEqual(isGitWorkTreeRoot(sourceRoot), true);
+      assert.strictEqual(isGitWorkTreeRoot(aliasRoot), true);
+
+      const canonicalPath = path.join(parent, 'private', 'var', 'repo');
+      const macAliasPath = path.join(parent, 'var', 'repo');
+      const fakeFs = {
+        realpathSync(value) {
+          return path.resolve(value) === macAliasPath ? canonicalPath : path.resolve(value);
+        },
+      };
+      const fakeGit = (command, args) => {
+        assert.strictEqual(command, 'git');
+        assert.deepStrictEqual(args.slice(-2), ['rev-parse', '--show-toplevel']);
+        return `${canonicalPath}\n`;
+      };
+      assert.strictEqual(isGitWorkTreeRoot(macAliasPath, fakeFs, fakeGit), true);
+    } finally {
+      fs.rmSync(parent, { recursive: true, force: true });
     }
   })) passed++; else failed++;
 

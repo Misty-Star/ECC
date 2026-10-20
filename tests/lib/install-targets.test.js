@@ -98,8 +98,10 @@ function runTests() {
       const mcpPaths = mcpAllowed.map((operation) => String(operation.sourceRelativePath).replace(/\\/g, '/'));
       assert.ok(mcpPaths.includes('.mcp.json'));
       assert.ok(mcpAllowed.some((operation) => (
-        operation.contentTransform === 'grok-mcp-consent'
-        && operation.grokMcpIds.includes('chrome-devtools')
+        operation.contentTransform
+        && operation.contentTransform.type === 'json-filter-object-keys'
+        && operation.contentTransform.path.join('.') === 'mcpServers'
+        && operation.contentTransform.keys.includes('chrome-devtools')
       )));
       assert.ok(!mcpPaths.some((item) => item === 'hooks' || item.startsWith('hooks/')));
     } finally {
