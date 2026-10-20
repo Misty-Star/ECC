@@ -419,7 +419,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 ```bash
 # Install plugin dependencies
 # Replace <version> with the version from `claude plugin list`, for example 2.2.3
-cd ~/.claude/plugins/cache/ecc/ecc/<version>
+cd "$HOME/.claude/plugins/cache/ecc/ecc/<version>"
 npm install
 
 # Or for manual install

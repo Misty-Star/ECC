@@ -395,7 +395,7 @@ chmod -R u+rwX,go+rX ~/.claude/homunculus
 ```bash
 # Install plugin dependencies
 # 将 <version> 替换为 `claude plugin list` 显示的版本，例如 2.2.3
-cd ~/.claude/plugins/cache/ecc/ecc/<version>
+cd "$HOME/.claude/plugins/cache/ecc/ecc/<version>"
 npm install
 
 # Or for manual install
