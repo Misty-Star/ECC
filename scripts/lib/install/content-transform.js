@@ -17,9 +17,80 @@ function formatJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function parseTransformObject(content, sourceRelativePath) {
+  const parsed = JSON.parse(content);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Invalid JSON object for install transform: ${sourceRelativePath}`);
+  }
+  return parsed;
+}
+
+function transformTextReplace(contract, content) {
+  if (typeof contract.search !== 'string' || !contract.search
+    || typeof contract.replace !== 'string') {
+    throw new Error('Invalid text-replace install content transform contract');
+  }
+  return content.split(contract.search).join(contract.replace);
+}
+
+function transformJsonSet(contract, content, sourceRelativePath) {
+  const values = contract.values;
+  if (!values || typeof values !== 'object' || Array.isArray(values)) {
+    throw new Error('Invalid json-set install content transform contract');
+  }
+  return formatJson({ ...parseTransformObject(content, sourceRelativePath), ...values });
+}
+
+function replaceObjectAtPath(value, objectPath, replacement, index = 0) {
+  const key = objectPath[index];
+  return index === objectPath.length - 1
+    ? { ...value, [key]: replacement }
+    : { ...value, [key]: replaceObjectAtPath(value[key], objectPath, replacement, index + 1) };
+}
+
+function transformJsonFilterObjectKeys(contract, content, sourceRelativePath) {
+  if (!Array.isArray(contract.path) || contract.path.length === 0
+    || !contract.path.every(key => typeof key === 'string' && key)
+    || !Array.isArray(contract.keys) || !contract.keys.every(key => typeof key === 'string')) {
+    throw new Error('Invalid json-filter-object-keys install content transform contract');
+  }
+  const parsed = parseTransformObject(content, sourceRelativePath);
+  let selected = parsed;
+  for (const key of contract.path) {
+    if (!selected || typeof selected !== 'object' || Array.isArray(selected)
+      || !Object.hasOwn(selected, key)) {
+      throw new Error(`Invalid JSON object path for install transform: ${sourceRelativePath}`);
+    }
+    selected = selected[key];
+  }
+  if (!selected || typeof selected !== 'object' || Array.isArray(selected)) {
+    throw new Error(`Invalid JSON object path for install transform: ${sourceRelativePath}`);
+  }
+  const allowed = new Set(contract.keys);
+  const filtered = Object.fromEntries(Object.entries(selected).filter(([key]) => allowed.has(key)));
+  return formatJson(replaceObjectAtPath(parsed, contract.path, filtered));
+}
+
+function transformByContract(contract, content, sourceRelativePath) {
+  if (!contract || typeof contract !== 'object' || Array.isArray(contract)) {
+    throw new Error('Invalid install content transform contract');
+  }
+  const handlers = {
+    'text-replace': transformTextReplace,
+    'json-set': transformJsonSet,
+    'json-filter-object-keys': transformJsonFilterObjectKeys,
+  };
+  const handler = handlers[contract.type];
+  if (!handler) throw new Error(`Unknown install content transform contract: ${contract.type}`);
+  return handler(contract, content, sourceRelativePath);
+}
+
 function transformInstallContent(operation, content) {
   if (!operation.contentTransform) {
     return content;
+  }
+  if (typeof operation.contentTransform === 'object') {
+    return transformByContract(operation.contentTransform, content, operation.sourceRelativePath);
   }
   if (operation.contentTransform === 'claude-manual-plugin-namespace') {
     return stripPluginNamespace(content);
@@ -56,33 +127,6 @@ function transformInstallContent(operation, content) {
       },
     };
     return `${JSON.stringify(installedConfig, null, 2)}\n`;
-  }
-  if (operation.contentTransform === 'grok-plugin-consent') {
-    const manifest = JSON.parse(content);
-    return formatJson({
-      ...manifest,
-      hooks: operation.grokHooksEnabled ? 'hooks/hooks.json' : '',
-      mcpServers: operation.grokMcpEnabled ? '.mcp.json' : '',
-    });
-  }
-  if (operation.contentTransform === 'grok-hook-boundary') {
-    return content.split('var e=process.env.CLAUDE_PLUGIN_ROOT;').join(
-      'var e=process.env.GROK_PLUGIN_ROOT||process.env.CLAUDE_PLUGIN_ROOT;'
-    );
-  }
-  if (operation.contentTransform === 'grok-mcp-consent') {
-    const config = JSON.parse(content);
-    if (!config || typeof config !== 'object' || Array.isArray(config)
-      || !config.mcpServers || typeof config.mcpServers !== 'object' || Array.isArray(config.mcpServers)) {
-      throw new Error(`Invalid Grok MCP config: ${operation.sourceRelativePath}`);
-    }
-    const allowed = new Set(operation.grokMcpIds || []);
-    return formatJson({
-      ...config,
-      mcpServers: Object.fromEntries(
-        Object.entries(config.mcpServers).filter(([id]) => allowed.has(id))
-      ),
-    });
   }
   throw new Error(`Unknown install content transform: ${operation.contentTransform}`);
 }

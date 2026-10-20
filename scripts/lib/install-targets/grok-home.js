@@ -10,6 +10,14 @@ const {
   normalizeRelativePath,
 } = require('./helpers');
 
+function grokHookBoundaryTransform() {
+  return {
+    type: 'text-replace',
+    search: 'var e=process.env.CLAUDE_PLUGIN_ROOT;',
+    replace: 'var e=process.env.GROK_PLUGIN_ROOT||process.env.CLAUDE_PLUGIN_ROOT;',
+  };
+}
+
 function isMcpPath(relativePath) {
   const normalized = normalizeRelativePath(relativePath);
   return normalized === '.mcp.json'
@@ -83,7 +91,7 @@ module.exports = createInstallTargetAdapter({
             ...operation,
             destinationPath: path.join(adapter.resolveRoot(input), 'plugins', 'ecc', sourceRelativePath),
             ...(normalizeRelativePath(sourceRelativePath) === 'hooks/hooks.json'
-              ? { contentTransform: 'grok-hook-boundary' }
+              ? { contentTransform: grokHookBoundaryTransform() }
               : {}),
           };
         });
@@ -95,7 +103,7 @@ module.exports = createInstallTargetAdapter({
       operations.push({
         ...adapter.createScaffoldOperation('hooks-runtime', 'hooks/hooks.json', input),
         destinationPath: hooksManifestPath,
-        contentTransform: 'grok-hook-boundary',
+        contentTransform: grokHookBoundaryTransform(),
       });
     }
     operations.push({
@@ -106,8 +114,11 @@ module.exports = createInstallTargetAdapter({
       operations.push({
         ...adapter.createScaffoldOperation('grok-mcp', '.mcp.json', input),
         destinationPath: path.join(pluginRoot, '.mcp.json'),
-        contentTransform: 'grok-mcp-consent',
-        grokMcpIds: allowedMcpIds,
+        contentTransform: {
+          type: 'json-filter-object-keys',
+          path: ['mcpServers'],
+          keys: allowedMcpIds,
+        },
       });
     }
     const manifestOperation = adapter.createScaffoldOperation(
@@ -118,9 +129,13 @@ module.exports = createInstallTargetAdapter({
     operations.push({
       ...manifestOperation,
       destinationPath: path.join(pluginRoot, '.grok-plugin', 'plugin.json'),
-      contentTransform: 'grok-plugin-consent',
-      grokHooksEnabled: hooksEnabled,
-      grokMcpEnabled: allowedMcpIds.length > 0,
+      contentTransform: {
+        type: 'json-set',
+        values: {
+          hooks: hooksEnabled ? 'hooks/hooks.json' : '',
+          mcpServers: allowedMcpIds.length > 0 ? '.mcp.json' : '',
+        },
+      },
     });
     return operations;
   },

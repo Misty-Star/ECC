@@ -103,9 +103,6 @@ function buildCopyFileOperation({
   destinationPath,
   strategy,
   contentTransform,
-  grokHooksEnabled,
-  grokMcpEnabled,
-  grokMcpIds,
 }) {
   // Copilot's agent and workflow transforms are textual. Their directories may
   // also contain binary assets and executable helpers, which must keep bytes.
@@ -122,9 +119,6 @@ function buildCopyFileOperation({
     ownership: 'managed',
     scaffoldOnly: false,
     ...(applicableTransform ? { contentTransform: applicableTransform } : {}),
-    ...(contentTransform === 'grok-plugin-consent' ? { grokHooksEnabled } : {}),
-    ...(contentTransform === 'grok-plugin-consent' ? { grokMcpEnabled } : {}),
-    ...(contentTransform === 'grok-mcp-consent' ? { grokMcpIds: [...grokMcpIds] } : {}),
   };
 }
 
@@ -204,9 +198,6 @@ function materializeScaffoldOperation(sourceRoot, operation) {
         destinationPath: operation.destinationPath,
         strategy: operation.strategy,
         contentTransform: operation.contentTransform,
-        grokHooksEnabled: operation.grokHooksEnabled,
-        grokMcpEnabled: operation.grokMcpEnabled,
-        grokMcpIds: operation.grokMcpIds,
       })
     ];
   }
@@ -224,9 +215,6 @@ function materializeScaffoldOperation(sourceRoot, operation) {
       destinationPath: path.join(operation.destinationPath, relativeFile),
       strategy: operation.strategy,
       contentTransform: operation.contentTransform,
-      grokHooksEnabled: operation.grokHooksEnabled,
-      grokMcpEnabled: operation.grokMcpEnabled,
-      grokMcpIds: operation.grokMcpIds,
     });
   });
 }

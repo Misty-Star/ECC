@@ -16,13 +16,13 @@ process.once('exit', () => {
   }
 });
 
-function isGitWorkTreeRoot(dir, pathModule = path) {
+function isGitWorkTreeRoot(dir, fsModule = fs, execute = execFileSync) {
   try {
-    const top = execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+    const top = execute('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
-    return pathModule.resolve(top) === pathModule.resolve(dir);
+    return fsModule.realpathSync(top) === fsModule.realpathSync(dir);
   } catch {
     return false;
   }
