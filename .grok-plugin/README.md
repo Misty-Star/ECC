@@ -85,6 +85,22 @@ file remains for Claude/Codex. Additional connectors stay opt-in via
 `mcp-configs/mcp-servers.json`. Canonical receipts record explicit per-server
 consent before any MCP name is copied into an install plan.
 
+## Native lifecycle verification
+
+With a real `grok` executable on `PATH`, run the opt-in acceptance driver:
+
+```bash
+node tests/ci/grok-native-lifecycle.js --report /tmp/grok-native-lifecycle.json
+```
+
+It uses fresh temporary homes without inherited credentials and fails if Grok is
+missing. It verifies ECC discovery, trust refusal, independent hook/MCP consent,
+disabled and missing roots, Git update, rollback, immutable pins, and uninstall.
+Native Git transitions use a disposable full ECC archive with synthetic versions;
+canonical lifecycle tests also require real `grok inspect` readbacks. Temporary
+installations are removed on exit. See the
+[recorded run and evidence boundaries](../docs/releases/2.2.3/grok-native-lifecycle.md).
+
 ## Known limits
 
 - 311 skills are advertised into Grok's skill catalog. Use a smaller working

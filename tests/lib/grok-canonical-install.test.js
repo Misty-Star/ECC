@@ -20,6 +20,7 @@ const {
 const repoRoot = path.resolve(__dirname, '..', '..');
 let passed = 0;
 let failed = 0;
+let nativeInspections = 0;
 
 function test(name, fn) {
   try {
@@ -128,13 +129,17 @@ function inspectWithGrok(fixture) {
     env: {
       ...process.env,
       HOME: fixture.homeDir,
+      USERPROFILE: fixture.homeDir,
       GROK_HOME: path.join(fixture.homeDir, '.grok'),
+      XDG_CONFIG_HOME: path.join(fixture.homeDir, '.config'),
+      XDG_DATA_HOME: path.join(fixture.homeDir, '.local', 'share'),
     },
     timeout: 30000,
   });
-  if (result.error && result.error.code === 'ENOENT') return null;
+  if (result.error && result.error.code === 'ENOENT' && process.env.ECC_REQUIRE_GROK_NATIVE !== '1') return null;
   if (result.error) throw result.error;
   assert.strictEqual(result.status, 0, result.stderr || result.stdout);
+  nativeInspections += 1;
   return JSON.parse(result.stdout);
 }
 
@@ -193,21 +198,25 @@ function runTests() {
       for (const options of [
         { trust: false, hooks: true, mcp: ['chrome-devtools', 'other-mcp'] },
         { trust: true, hooks: false, mcp: [] },
+        { trust: true, hooks: false, mcp: ['other-mcp'] },
+        { trust: true, hooks: true, mcp: [] },
       ]) {
         fs.rmSync(path.join(fixture.homeDir, '.grok'), { recursive: true, force: true });
         const plan = createPlan(fixture, options);
         applyInstallPlan(plan);
         const manifest = JSON.parse(fs.readFileSync(path.join(installedRoot(fixture), '.grok-plugin', 'plugin.json'), 'utf8'));
-        assert.strictEqual(manifest.hooks, '');
-        assert.strictEqual(manifest.mcpServers, '');
-        assert.ok(!fs.existsSync(path.join(installedRoot(fixture), '.mcp.json')));
-        assert.ok(!fs.existsSync(path.join(installedRoot(fixture), 'hooks', 'hooks.json')));
+        const hooksEnabled = options.trust && options.hooks;
+        const mcpEnabled = options.trust && options.mcp.length > 0;
+        assert.strictEqual(manifest.hooks, hooksEnabled ? 'hooks/hooks.json' : '');
+        assert.strictEqual(manifest.mcpServers, mcpEnabled ? '.mcp.json' : '');
+        assert.strictEqual(fs.existsSync(path.join(installedRoot(fixture), '.mcp.json')), mcpEnabled);
+        assert.strictEqual(fs.existsSync(path.join(installedRoot(fixture), 'hooks', 'hooks.json')), hooksEnabled);
         const inspection = inspectWithGrok(fixture);
         if (inspection) {
           const plugin = inspection.plugins.find((item) => item.name === 'ecc');
           assert.ok(plugin && plugin.enabled);
-          assert.strictEqual(plugin.provides.hooks, false);
-          assert.strictEqual(plugin.provides.mcpServers, 0);
+          assert.strictEqual(plugin.provides.hooks, hooksEnabled);
+          assert.strictEqual(plugin.provides.mcpServers, mcpEnabled ? 1 : 0);
         }
       }
     } finally {
@@ -470,6 +479,13 @@ function runTests() {
         fs.readFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'utf8'),
         'upgraded payload\n'
       );
+      const upgradedInspection = inspectWithGrok(fixture);
+      if (upgradedInspection) {
+        const plugin = upgradedInspection.plugins.find(item => item.name === 'ecc');
+        assert.ok(plugin && plugin.enabled);
+        assert.strictEqual(plugin.provides.hooks, false);
+        assert.strictEqual(plugin.provides.mcpServers, 0);
+      }
 
       const rollbackPlan = createPlan(
         fixture,
@@ -484,6 +500,13 @@ function runTests() {
         'pinned payload\n'
       );
       assert.strictEqual(rolledBackState.source.repoVersion, '2.1.0');
+      const rollbackInspection = inspectWithGrok(fixture);
+      if (rollbackInspection) {
+        const plugin = rollbackInspection.plugins.find(item => item.name === 'ecc');
+        assert.ok(plugin && plugin.enabled);
+        assert.strictEqual(plugin.provides.hooks, true);
+        assert.strictEqual(plugin.provides.mcpServers, 1);
+      }
 
       fs.writeFileSync(path.join(installedRoot(fixture), 'commands', 'plan.md'), 'broken after rollback\n');
       const rollbackRepair = repairInstalledStates({
@@ -513,12 +536,17 @@ function runTests() {
       assert.strictEqual(uninstall.results[0].status, 'uninstalled');
       assert.ok(!fs.existsSync(firstPlan.installStatePath));
       assert.ok(!fs.existsSync(installedRoot(fixture)));
+      const uninstalledInspection = inspectWithGrok(fixture);
+      if (uninstalledInspection) {
+        assert.ok(!uninstalledInspection.plugins.some(item => item.name === 'ecc'));
+      }
     } finally {
       fs.rmSync(fixture.parent, { recursive: true, force: true });
     }
   })) passed++; else failed++;
 
   console.log(`\nResults: Passed: ${passed}, Failed: ${failed}`);
+  console.log(`Native Grok inspections: ${nativeInspections}`);
   process.exit(failed > 0 ? 1 : 0);
 }
 
